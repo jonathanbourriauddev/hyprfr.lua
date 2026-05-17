@@ -1,0 +1,60 @@
+{
+    "layer": "top",
+    "position": "top",
+    "height": 36,
+    "spacing": 4,
+    "margin-top": 8,
+    "margin-left": 12,
+    "margin-right": 12,
+    "modules-left": ["hyprland/workspaces"],
+    "modules-center": ["clock"],
+    "modules-right": ["pulseaudio", "network", "battery", "tray", "custom/power"],
+
+    "hyprland/workspaces": {
+        "format": "{name}",
+        "persistent-workspaces": {
+            "*": 5
+        },
+        "on-click": "activate",
+        "sort-by-number": true
+    },
+
+    "clock": {
+        "format": "󰥔 {:%H:%M}",
+        "format-alt": "󰃶 {:%A %d %B %Y}",
+        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>"
+    },
+
+    "pulseaudio": {
+        "format": "{icon} {volume}%",
+        "format-muted": "󰝟",
+        "format-icons": {
+            "default": ["󰕿", "󰖀", "󰕾"]
+        },
+        "on-click": "pavucontrol"
+    },
+
+    "network": {
+        "interface": "wlan0",
+        "format": "󰤨 {essid}",
+        "format-disconnected": "󰤭 déconnecté",
+        "tooltip": false,
+        "on-click": "kitty -e nmtui"
+    },
+
+    "battery": {
+        "format": "{icon} {capacity}%",
+        "format-charging": "󰂄 {capacity}%",
+        "format-icons": ["󰁺", "󰁻", "󰁼", "󰁽", "󰁾", "󰁿", "󰂀", "󰂁", "󰂂", "󰁹"]
+    },
+
+    "tray": {
+        "spacing": 8
+    },
+
+     "custom/power": {
+    "format": "󰐥",
+    "on-click": "wlogout -b 3 -c 0 -r 0 -m 0 --css ~/.config/wlogout/style.css --layout ~/.config/wlogout/layout",
+    "tooltip": false
+   }
+}
