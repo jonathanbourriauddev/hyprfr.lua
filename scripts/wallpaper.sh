@@ -15,7 +15,8 @@ SELECTED=$(find "$WALLPAPER_DIR" -type f \( -name "*.jpg" -o -name "*.jpeg" -o -
 
 if [ -n "$SELECTED" ]; then
   hyprctl hyprpaper preload "$SELECTED"
-  hyprctl hyprpaper wallpaper ",$SELECTED"
-  sed -i "s|^wallpaper = .*|wallpaper = ,$SELECTED|" ~/.config/hypr/hyprpaper.conf
-  sed -i "s|^preload = .*|preload = $SELECTED|" ~/.config/hypr/hyprpaper.conf
+  sleep 0.5
+  hyprctl hyprpaper wallpaper "eDP-1,$SELECTED"
+  sed -i "s|^wallpaper = .*|wallpaper = eDP-1,$SELECTED|" /home/joe/dotfiles/hyprpaper/.config/hypr/hyprpaper.conf
+  sed -i "s|^preload = .*|preload = $SELECTED|" /home/joe/dotfiles/hyprpaper/.config/hypr/hyprpaper.conf
 fi
