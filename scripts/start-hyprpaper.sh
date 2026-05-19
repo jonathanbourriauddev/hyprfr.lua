@@ -1,11 +1,7 @@
 #!/bin/bash
-WALLPAPER="/home/ricedev/Pictures/wallpapers/wall-1.jpg"
-
-# Attendre que Hyprland soit prêt
-sleep 1
+sleep 2
 hyprpaper &
 sleep 1
-
-# Appliquer via IPC comme le fait wallpaper.sh
-hyprctl hyprpaper preload "$WALLPAPER"
-hyprctl hyprpaper wallpaper "eDP-1,$WALLPAPER"
+hyprctl hyprpaper preload "/home/joe/Pictures/wallpapers/Gemini_Generated_Image_1bkq3o1bkq3o1bkq.png"
+sleep 0.5
+hyprctl hyprpaper wallpaper "eDP-1,/home/joe/Pictures/wallpapers/Gemini_Generated_Image_1bkq3o1bkq3o1bkq.png"
