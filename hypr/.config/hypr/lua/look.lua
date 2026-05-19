@@ -1,5 +1,5 @@
 -- ============================================================
--- LOOK AND FEEL — Style TypeCraft + Dracula Warm
+-- LOOK AND FEEL — Style TypeCraft + Grimoire
 -- ============================================================
 
 local colors = require("lua.colors")
