@@ -6,9 +6,9 @@ local colors = require("lua.colors")
 
 hl.config({
 	general = {
-		gaps_in = 5,
-		gaps_out = 15,
-		border_size = 2,
+		gaps_in = 1,
+		gaps_out = 2,
+		border_size = 3,
 		col = {
 			active_border = colors.border_active,
 			inactive_border = colors.border_inactive,
