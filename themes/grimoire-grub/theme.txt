@@ -8,11 +8,11 @@ desktop-image: "background.png"
     height = 50%
     item_font = "Unifont Regular 16"
     item_color = "#f8f8f2"
-    selected_item_color = "#221a1a"
+    selected_item_color = "#e0789a"
     item_height = 40
     item_padding = 10
     item_spacing = 4
-    selected_background_color = "#e0789a"
+    selected_background_color = "#2d2020"
     icon_width = 0
     icon_height = 0
     scrollbar = false
