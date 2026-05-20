@@ -192,6 +192,7 @@ dotfiles/
 - [x] Icônes Wlogout custom
 - [x] Support second écran HDMI-A-1
 - [x] Script `install.sh` automatique
+- [x] Thème curseur Grimoire (`phinger-cursors-grimoire`)
 
 ### V2 — Modernisation
 - [ ] Waybar → AGS / Astal
@@ -200,6 +201,7 @@ dotfiles/
 - [ ] Shell Fish → ZSH
 - [ ] Installateur TUI interactif
 - [ ] Thèmes switchables
+- [ ] Curseur Grimoire v2 — rebuild Figma natif (pixel perfect)
 
 ### V3 — Communauté
 - [ ] Site vitrine
