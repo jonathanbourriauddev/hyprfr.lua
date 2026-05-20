@@ -2,6 +2,7 @@
 sleep 2
 hyprpaper &
 sleep 1
-hyprctl hyprpaper preload "/home/joe/Pictures/wallpapers/Gemini_Generated_Image_1bkq3o1bkq3o1bkq.png"
+hyprctl hyprpaper preload "/home/joe/Pictures/wallpapers/grimoire.png"
 sleep 0.5
-hyprctl hyprpaper wallpaper "eDP-1,/home/joe/Pictures/wallpapers/Gemini_Generated_Image_1bkq3o1bkq3o1bkq.png"
+hyprctl hyprpaper wallpaper "eDP-1,/home/joe/Pictures/wallpapers/grimoire.png"
+hyprctl hyprpaper wallpaper "HDMI-A-1,/home/joe/Pictures/wallpapers/grimoire.png"
