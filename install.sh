@@ -181,11 +181,34 @@ detect_aur_helper() {
         AUR_HELPER="yay"
         success "yay détecté"
     else
-        warn "Aucun helper AUR trouvé. Installation de paru..."
-        install_paru
+        warn "Aucun helper AUR trouvé. Installation de yay..."
+        install_yay
     fi
 
     info "Helper AUR utilisé : ${BOLD}${AUR_HELPER}${RESET}"
+}
+
+install_yay() {
+    info "Clonage de yay depuis l'AUR..."
+    local tmp_dir
+    tmp_dir=$(mktemp -d)
+
+    if git clone https://aur.archlinux.org/yay.git "$tmp_dir/yay" >> "$LOG_FILE" 2>&1; then
+        pushd "$tmp_dir/yay" > /dev/null
+        if makepkg -si --noconfirm >> "$LOG_FILE" 2>&1; then
+            success "yay installé avec succès"
+            AUR_HELPER="yay"
+        else
+            warn "Échec de yay, tentative avec paru..."
+            install_paru
+        fi
+        popd > /dev/null
+    else
+        warn "Impossible de cloner yay, tentative avec paru..."
+        install_paru
+    fi
+
+    rm -rf "$tmp_dir"
 }
 
 install_paru() {
@@ -262,6 +285,15 @@ install_packages() {
         playerctl
         # GTK
         nwg-look
+        # SDDM & dépendances QML
+        sddm
+        qt5-quickcontrols2
+        qt5-graphicaleffects
+        qt5-svg
+        # Curseurs
+        imagemagick
+        # Multi-boot
+        os-prober
         # Dépendances
         python-cairosvg
         git
@@ -272,7 +304,10 @@ install_packages() {
     local aur_packages=(
         hyprpicker
         wlogout
-        sddm
+        brave-bin
+        obsidian
+        xcur2png
+        xdg-terminal-exec
     )
 
     # Installation pacman
@@ -477,6 +512,17 @@ setup_grub() {
 
     # Régénérer grub.cfg
     info "Régénération de grub.cfg..."
+
+    # Activer os-prober pour détecter les autres OS (dual boot)
+    local grub_conf="/etc/default/grub"
+    if grep -q "^#GRUB_DISABLE_OS_PROBER" "$grub_conf" 2>/dev/null; then
+        sudo sed -i "s|^#GRUB_DISABLE_OS_PROBER.*|GRUB_DISABLE_OS_PROBER=false|" "$grub_conf"
+        info "os-prober activé dans /etc/default/grub"
+    elif ! grep -q "^GRUB_DISABLE_OS_PROBER" "$grub_conf" 2>/dev/null; then
+        echo "GRUB_DISABLE_OS_PROBER=false" | sudo tee -a "$grub_conf" > /dev/null
+        info "os-prober ajouté dans /etc/default/grub"
+    fi
+
     if sudo grub-mkconfig -o /boot/grub/grub.cfg >> "$LOG_FILE" 2>&1; then
         success "GRUB configuré avec le thème Grimoire"
     else
@@ -553,16 +599,16 @@ setup_directories() {
         fi
     done
 
-    # Copier un wallpaper par défaut si présent dans le repo
-    local wallpaper_src="$DOTFILES_DIR/assets/grimoire.png"
-    local wallpaper_dst="$HOME/Pictures/wallpapers/grimoire.png"
+    # Copier tous les wallpapers depuis le repo
+    local wallpaper_src="$DOTFILES_DIR/wallpapers"
+    local wallpaper_dst="$HOME/Pictures/wallpapers"
 
-    if [[ -f "$wallpaper_src" ]]; then
-        cp "$wallpaper_src" "$wallpaper_dst"
-        success "Wallpaper par défaut copié"
+    if [[ -d "$wallpaper_src" ]]; then
+        cp "$wallpaper_src"/* "$wallpaper_dst/" >> "$LOG_FILE" 2>&1
+        success "Wallpapers copiés dans ~/Pictures/wallpapers/"
     else
-        warn "Aucun wallpaper par défaut trouvé dans assets/"
-        info "Placez votre wallpaper dans ~/Pictures/wallpapers/grimoire.png"
+        warn "Dossier wallpapers/ introuvable dans le repo"
+        info "Placez vos wallpapers dans ~/Pictures/wallpapers/"
     fi
 }
 
@@ -582,6 +628,56 @@ setup_scripts() {
     else
         warn "Dossier scripts/ introuvable"
     fi
+}
+
+# =============================================================================
+# CURSEURS GRIMOIRE
+# =============================================================================
+
+setup_cursors() {
+    step "Installation du thème curseur Grimoire"
+
+    local script="$DOTFILES_DIR/scripts/build-grimoire-cursors-v2.sh"
+
+    if [[ ! -f "$script" ]]; then
+        warn "Script curseur introuvable : $script — ignoré"
+        return
+    fi
+
+    # xcur2png doit être installé AVANT d'exécuter le script
+    if ! command -v xcur2png &>/dev/null; then
+        warn "xcur2png non disponible, tentative d'installation..."
+        if ! $AUR_HELPER -S --noconfirm --needed xcur2png >> "$LOG_FILE" 2>&1; then
+            error "Impossible d'installer xcur2png — curseurs ignorés"
+            return
+        fi
+    fi
+
+    info "Construction du thème curseur phinger-cursors-grimoire..."
+    if bash "$script" >> "$LOG_FILE" 2>&1; then
+        success "Thème curseur Grimoire installé dans ~/.local/share/icons/"
+    else
+        error "Échec de la construction du thème curseur"
+    fi
+}
+
+# =============================================================================
+# TERMINAL PAR DÉFAUT (xdg-terminal-exec)
+# =============================================================================
+
+setup_xdg_terminal() {
+    step "Configuration de Kitty comme terminal par défaut"
+
+    local xdg_conf="$HOME/.config/xdg-terminals.list"
+
+    mkdir -p "$HOME/.config"
+
+    if [[ -f "$xdg_conf" ]]; then
+        info "xdg-terminals.list déjà présent, mise à jour..."
+    fi
+
+    echo "kitty.desktop" > "$xdg_conf"
+    success "Kitty défini comme terminal par défaut ($xdg_conf)"
 }
 
 # =============================================================================
@@ -666,6 +762,8 @@ main() {
     setup_grub
     setup_gtk
     setup_bluetooth
+    setup_cursors
+    setup_xdg_terminal
 
     summary
 }
