@@ -1,6 +1,7 @@
 {
     "layer": "top",
     "position": "top",
+    "exclusive-zone": 44,
     "height": 36,
     "spacing": 4,
     "margin-top": 8,

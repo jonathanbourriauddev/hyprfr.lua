@@ -34,18 +34,24 @@ hl.bind(mainMod .. " + right", hl.dsp.focus({ direction = "right" }))
 hl.bind(mainMod .. " + up", hl.dsp.focus({ direction = "up" }))
 hl.bind(mainMod .. " + down", hl.dsp.focus({ direction = "down" }))
 
--- Workspaces AZERTY
+-- Déplacer les fenêtres
+hl.bind(mainMod .. " + SHIFT + left", hl.dsp.window.move({ direction = "left" }))
+hl.bind(mainMod .. " + SHIFT + right", hl.dsp.window.move({ direction = "right" }))
+hl.bind(mainMod .. " + SHIFT + up", hl.dsp.window.move({ direction = "up" }))
+hl.bind(mainMod .. " + SHIFT + down", hl.dsp.window.move({ direction = "down" }))
+
+-- Workspaces AZERTY (codes touches)
 local azerty_keys = {
-	"ampersand",
-	"eacute",
-	"quotedbl",
-	"apostrophe",
-	"parenleft",
-	"minus",
-	"egrave",
-	"underscore",
-	"ccedilla",
-	"agrave",
+	"code:10", -- &  ws1
+	"code:11", -- é  ws2
+	"code:12", -- "  ws3
+	"code:13", -- '  ws4
+	"code:14", -- (  ws5
+	"code:15", -- -  ws6
+	"code:16", -- è  ws7
+	"code:17", -- _  ws8
+	"code:18", -- ç  ws9
+	"code:19", -- à  ws10
 }
 
 for i, key in ipairs(azerty_keys) do
