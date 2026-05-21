@@ -425,7 +425,7 @@ setup_shell() {
             success "Fish est déjà le shell par défaut"
         else
             info "Définition de fish comme shell par défaut..."
-            if chsh -s "$fish_path" >> "$LOG_FILE" 2>&1; then
+            if sudo chsh -s "$fish_path" "$USER" >> "$LOG_FILE" 2>&1; then
                 success "Shell par défaut → fish"
             else
                 warn "Impossible de changer le shell (peut-être déjà fish sur CachyOS)"
@@ -489,11 +489,15 @@ EOF
 setup_grub() {
     step "Configuration du thème GRUB"
 
+    # Désactiver set -e localement pour que les erreurs de détection ne tuent pas le script
+    set +e
+
     local grub_theme_src="$DOTFILES_DIR/themes/grimoire-grub"
     local grub_theme_dst="/boot/grub/themes/grimoire"
 
     if [[ ! -d "$grub_theme_src" ]]; then
         warn "Thème GRUB introuvable dans $grub_theme_src — ignoré"
+        set -e
         return
     fi
 
@@ -502,6 +506,7 @@ setup_grub() {
         success "Thème GRUB copié"
     else
         error "Impossible de copier le thème GRUB"
+        set -e
         return
     fi
 
@@ -516,7 +521,7 @@ setup_grub() {
         echo "$theme_line" | sudo tee -a "$grub_conf" > /dev/null
     fi
 
-    # Activer os-prober pour le dual boot
+    # Activer os-prober
     if grep -q "^#GRUB_DISABLE_OS_PROBER" "$grub_conf" 2>/dev/null; then
         sudo sed -i "s|^#GRUB_DISABLE_OS_PROBER.*|GRUB_DISABLE_OS_PROBER=false|" "$grub_conf"
     elif ! grep -q "^GRUB_DISABLE_OS_PROBER" "$grub_conf" 2>/dev/null; then
@@ -524,42 +529,44 @@ setup_grub() {
     fi
     info "os-prober activé dans /etc/default/grub"
 
-    # Détecter et monter les partitions EFI des autres disques pour os-prober
+    # Monter les partitions EFI des autres disques pour os-prober
     info "Détection des autres disques pour le dual boot..."
-    local current_root
-    current_root=$(findmnt -n -o SOURCE /)
     local current_disk
-    current_disk=$(lsblk -no PKNAME "$current_root" 2>/dev/null | head -1)
+    current_disk=$(lsblk -no PKNAME "$(findmnt -n -o SOURCE /)" 2>/dev/null | head -1 || echo "")
+    log "Disque actuel : $current_disk"
 
     local tmp_efi
     tmp_efi=$(mktemp -d)
     local other_efi_mounted=false
 
-    while IFS= read -r efi_part; do
-        local efi_disk
-        efi_disk=$(lsblk -no PKNAME "$efi_part" 2>/dev/null | head -1)
-        if [[ "$efi_disk" != "$current_disk" ]]; then
-            info "Montage de la partition EFI : $efi_part"
-            if sudo mount "$efi_part" "$tmp_efi" >> "$LOG_FILE" 2>&1; then
-                other_efi_mounted=true
+    if [[ -n "$current_disk" ]]; then
+        while IFS= read -r efi_part; do
+            local efi_disk
+            efi_disk=$(lsblk -no PKNAME "$efi_part" 2>/dev/null | head -1 || echo "")
+            if [[ -n "$efi_disk" && "$efi_disk" != "$current_disk" ]]; then
+                info "Montage EFI : $efi_part"
+                if sudo mount "$efi_part" "$tmp_efi" >> "$LOG_FILE" 2>&1; then
+                    other_efi_mounted=true
+                    log "EFI monté : $efi_part"
+                fi
             fi
-        fi
-    done < <(lsblk -rno NAME,FSTYPE | awk '$2=="vfat"{print "/dev/"$1}')
+        done < <(lsblk -rno NAME,FSTYPE 2>/dev/null | awk '$2=="vfat"{print "/dev/"$1}')
+    fi
 
     # Lancer os-prober
     local os_prober_result
     os_prober_result=$(sudo os-prober 2>/dev/null || true)
-    log "os-prober résultat : $os_prober_result"
+    log "os-prober résultat : ${os_prober_result:-rien}"
 
-    # Démonter les partitions EFI temporaires
+    # Démonter les EFI temporaires
     if [[ "$other_efi_mounted" == true ]]; then
         sudo umount "$tmp_efi" >> "$LOG_FILE" 2>&1 || true
     fi
     rm -rf "$tmp_efi"
 
-    # Si os-prober n'a rien trouvé, ajouter les entrées manuellement via 40_custom
+    # Si os-prober n'a rien trouvé → entrées manuelles dans 40_custom
     if [[ -z "$os_prober_result" ]]; then
-        warn "os-prober n'a rien détecté — ajout manuel des entrées btrfs dans 40_custom"
+        warn "os-prober n'a rien détecté — ajout manuel des entrées btrfs"
         setup_grub_custom_entries
     else
         success "os-prober a détecté : $os_prober_result"
@@ -572,23 +579,24 @@ setup_grub() {
     else
         error "Échec de la régénération de grub.cfg"
     fi
+
+    set -e
 }
 
 setup_grub_custom_entries() {
-    local custom_file="/etc/grub.d/40_custom"
-    local current_root
-    current_root=$(findmnt -n -o SOURCE /)
-    local current_disk
-    current_disk=$(lsblk -no PKNAME "$current_root" 2>/dev/null | head -1)
+    set +e
 
+    local custom_file="/etc/grub.d/40_custom"
+    local current_disk
+    current_disk=$(lsblk -no PKNAME "$(findmnt -n -o SOURCE /)" 2>/dev/null | head -1 || echo "")
     local entries_added=0
 
-    # Chercher toutes les partitions btrfs qui ne sont pas le disque actuel
     while IFS= read -r part; do
         local part_disk
-        part_disk=$(lsblk -no PKNAME "$part" 2>/dev/null | head -1)
+        part_disk=$(lsblk -no PKNAME "$part" 2>/dev/null | head -1 || echo "")
 
-        if [[ "$part_disk" == "$current_disk" ]]; then
+        # Ignorer le disque actuel
+        if [[ -z "$part_disk" || "$part_disk" == "$current_disk" ]]; then
             continue
         fi
 
@@ -598,29 +606,28 @@ setup_grub_custom_entries() {
             continue
         fi
 
-        # Détecter le nom du kernel sur cette partition
+        # Monter pour détecter le kernel
         local tmp_mnt
         tmp_mnt=$(mktemp -d)
-        if sudo mount -o subvol=@ "$part" "$tmp_mnt" >> "$LOG_FILE" 2>&1; then
-            local kernel_name="vmlinuz-linux-cachyos"
-            local initrd_name="initramfs-linux-cachyos.img"
+        local kernel_name="vmlinuz-linux-cachyos"
+        local initrd_name="initramfs-linux-cachyos.img"
 
-            # Chercher le kernel réel
-            if [[ -d "$tmp_mnt/boot" ]]; then
-                local found_kernel
-                found_kernel=$(ls "$tmp_mnt/boot"/vmlinuz-* 2>/dev/null | head -1 | xargs basename 2>/dev/null || true)
-                if [[ -n "$found_kernel" ]]; then
-                    kernel_name="$found_kernel"
-                    initrd_name="initramfs-${kernel_name#vmlinuz-}.img"
-                fi
+        if sudo mount -o subvol=@,ro "$part" "$tmp_mnt" >> "$LOG_FILE" 2>&1; then
+            local found_kernel
+            found_kernel=$(ls "$tmp_mnt/boot"/vmlinuz-* 2>/dev/null | head -1 | xargs -I{} basename {} 2>/dev/null || true)
+            if [[ -n "$found_kernel" ]]; then
+                kernel_name="$found_kernel"
+                initrd_name="initramfs-${kernel_name#vmlinuz-}.img"
             fi
-
             sudo umount "$tmp_mnt" >> "$LOG_FILE" 2>&1 || true
+        fi
+        rm -rf "$tmp_mnt"
 
-            local entry_label="CachyOS ($part_disk)"
-            info "Ajout entrée GRUB manuelle : $entry_label (UUID=$uuid)"
+        local entry_label="CachyOS ($part_disk)"
+        info "Ajout entrée GRUB : $entry_label (UUID=$uuid)"
+        log "GRUB custom: $entry_label kernel=$kernel_name uuid=$uuid"
 
-            sudo tee -a "$custom_file" > /dev/null <<EOF
+        sudo tee -a "$custom_file" > /dev/null <<EOF
 
 menuentry '${entry_label}' {
     insmod part_gpt
@@ -630,17 +637,17 @@ menuentry '${entry_label}' {
     initrd /@/boot/${initrd_name}
 }
 EOF
-            entries_added=$((entries_added + 1))
-        fi
-        rm -rf "$tmp_mnt"
+        entries_added=$((entries_added + 1))
 
-    done < <(lsblk -rno NAME,FSTYPE | awk '$2=="btrfs"{print "/dev/"$1}')
+    done < <(lsblk -rno NAME,FSTYPE 2>/dev/null | awk '$2=="btrfs"{print "/dev/"$1}')
 
     if [[ $entries_added -gt 0 ]]; then
-        success "$entries_added entrée(s) GRUB ajoutée(s) manuellement dans 40_custom"
+        success "$entries_added entrée(s) GRUB ajoutée(s) dans 40_custom"
     else
-        warn "Aucun autre disque btrfs détecté pour le dual boot"
+        warn "Aucun autre disque btrfs détecté"
     fi
+
+    set -e
 }
 
 # =============================================================================
@@ -749,11 +756,13 @@ setup_scripts() {
 
 setup_cursors() {
     step "Installation du thème curseur Grimoire"
+    set +e
 
     local script="$DOTFILES_DIR/scripts/build-grimoire-cursors-v2.sh"
 
     if [[ ! -f "$script" ]]; then
         warn "Script curseur introuvable : $script — ignoré"
+        set -e
         return
     fi
 
@@ -763,12 +772,9 @@ setup_cursors() {
             warn "$dep non disponible, tentative d'installation..."
             local pkg="xcur2png"
             [[ "$dep" == "xcursorgen" ]] && pkg="xorg-xcursorgen"
-            if ! sudo pacman -S --noconfirm --needed "$pkg" >> "$LOG_FILE" 2>&1; then
-                if ! $AUR_HELPER -S --noconfirm --needed "$pkg" >> "$LOG_FILE" 2>&1; then
-                    error "Impossible d'installer $pkg — curseurs ignorés"
-                    return
-                fi
-            fi
+            sudo pacman -S --noconfirm --needed "$pkg" >> "$LOG_FILE" 2>&1 || \
+            $AUR_HELPER -S --noconfirm --needed "$pkg" >> "$LOG_FILE" 2>&1 || \
+            { error "Impossible d'installer $pkg — curseurs ignorés"; set -e; return; }
         fi
     done
 
@@ -776,9 +782,10 @@ setup_cursors() {
     if bash "$script" >> "$LOG_FILE" 2>&1; then
         success "Thème curseur Grimoire installé dans ~/.local/share/icons/"
     else
-        error "Échec de la construction du thème curseur — voir le log pour les détails"
-        bash "$script" 2>&1 | tail -5 | while read -r line; do log "CURSEUR: $line"; done
+        error "Échec de la construction du thème curseur — voir le log"
     fi
+
+    set -e
 }
 
 # =============================================================================
