@@ -22,14 +22,13 @@ RESET="\033[0m"
 BOLD="\033[1m"
 DIM="\033[2m"
 
-# Palette Grimoire
-PRIMARY="\033[38;2;224;120;154m"    # #e0789a — rose-violet
-SECONDARY="\033[38;2;255;184;108m"  # #ffb86c — orange
-TERTIARY="\033[38;2;255;110;110m"   # #ff6e6e — rouge-rose
-CYAN="\033[38;2;164;255;255m"       # #a4ffff — info
-GREEN="\033[38;2;105;255;148m"      # #69ff94 — succès
-PURPLE="\033[38;2;189;147;249m"     # #bd93f9 — violet
-TEXT="\033[38;2;248;248;242m"       # #f8f8f2 — texte
+PRIMARY="\033[38;2;224;120;154m"
+SECONDARY="\033[38;2;255;184;108m"
+TERTIARY="\033[38;2;255;110;110m"
+CYAN="\033[38;2;164;255;255m"
+GREEN="\033[38;2;105;255;148m"
+PURPLE="\033[38;2;189;147;249m"
+TEXT="\033[38;2;248;248;242m"
 
 # =============================================================================
 # VARIABLES GLOBALES
@@ -239,7 +238,6 @@ install_paru() {
 install_packages() {
     step "Installation des paquets"
 
-    # -- Paquets officiels (pacman) -------------------------------------------
     local pacman_packages=(
         # Compositeur & protocoles
         hyprland
@@ -271,6 +269,7 @@ install_packages() {
         blueman
         # Fetch
         fastfetch
+        chafa
         # Dotfiles
         stow
         # Polices
@@ -303,7 +302,6 @@ install_packages() {
         base-devel
     )
 
-    # -- Paquets AUR -----------------------------------------------------------
     local aur_packages=(
         hyprpicker
         wlogout
@@ -311,9 +309,10 @@ install_packages() {
         obsidian
         xcur2png
         xdg-terminal-exec
+        swayosd-git
+        onlyoffice-bin
     )
 
-    # Installation pacman
     info "Mise à jour du système..."
     if sudo pacman -Syu --noconfirm >> "$LOG_FILE" 2>&1; then
         success "Système mis à jour"
@@ -381,7 +380,6 @@ deploy_dotfiles() {
             continue
         fi
 
-        # Supprimer les conflits éventuels
         local target_dir="$HOME/.config/$(basename "$module")"
         if [[ -d "$target_dir" && ! -L "$target_dir" ]]; then
             info "Sauvegarde de ~/.config/$module → ~/.config/$module.bak"
@@ -391,7 +389,6 @@ deploy_dotfiles() {
         if stow --target="$HOME" "$module" >> "$LOG_FILE" 2>&1; then
             log "OK stow: $module"
         else
-            # Tentative avec --adopt en fallback
             if stow --adopt --target="$HOME" "$module" >> "$LOG_FILE" 2>&1; then
                 log "OK stow (adopt): $module"
             else
@@ -414,13 +411,11 @@ setup_shell() {
         local fish_path
         fish_path=$(command -v fish)
 
-        # Ajouter fish à /etc/shells si absent
         if ! grep -q "$fish_path" /etc/shells; then
             info "Ajout de fish à /etc/shells..."
             echo "$fish_path" | sudo tee -a /etc/shells >> "$LOG_FILE" 2>&1
         fi
 
-        # Définir fish comme shell par défaut
         if [[ "$SHELL" == "$fish_path" ]]; then
             success "Fish est déjà le shell par défaut"
         else
@@ -459,7 +454,6 @@ setup_sddm() {
         return
     fi
 
-    # Configurer SDDM pour utiliser le thème Grimoire
     info "Application du thème SDDM..."
     sudo mkdir -p /etc/sddm.conf.d
 
@@ -471,7 +465,6 @@ Current=grimoire-sddm
 Numlock=on
 EOF
 
-    # Activer le service SDDM
     info "Activation du service SDDM..."
     if sudo systemctl enable sddm >> "$LOG_FILE" 2>&1; then
         success "SDDM activé au démarrage"
@@ -488,8 +481,6 @@ EOF
 
 setup_grub() {
     step "Configuration du thème GRUB"
-
-    # Désactiver set -e localement pour que les erreurs de détection ne tuent pas le script
     set +e
 
     local grub_theme_src="$DOTFILES_DIR/themes/grimoire-grub"
@@ -510,7 +501,6 @@ setup_grub() {
         return
     fi
 
-    # Mise à jour de /etc/default/grub
     info "Mise à jour de la configuration GRUB..."
     local grub_conf="/etc/default/grub"
     local theme_line="GRUB_THEME=\"${grub_theme_dst}/theme.txt\""
@@ -521,7 +511,6 @@ setup_grub() {
         echo "$theme_line" | sudo tee -a "$grub_conf" > /dev/null
     fi
 
-    # Activer os-prober
     if grep -q "^#GRUB_DISABLE_OS_PROBER" "$grub_conf" 2>/dev/null; then
         sudo sed -i "s|^#GRUB_DISABLE_OS_PROBER.*|GRUB_DISABLE_OS_PROBER=false|" "$grub_conf"
     elif ! grep -q "^GRUB_DISABLE_OS_PROBER" "$grub_conf" 2>/dev/null; then
@@ -529,7 +518,6 @@ setup_grub() {
     fi
     info "os-prober activé dans /etc/default/grub"
 
-    # Monter les partitions EFI des autres disques pour os-prober
     info "Détection des autres disques pour le dual boot..."
     local current_disk
     current_disk=$(lsblk -no PKNAME "$(findmnt -n -o SOURCE /)" 2>/dev/null | head -1 || echo "")
@@ -553,18 +541,15 @@ setup_grub() {
         done < <(lsblk -rno NAME,FSTYPE 2>/dev/null | awk '$2=="vfat"{print "/dev/"$1}')
     fi
 
-    # Lancer os-prober
     local os_prober_result
     os_prober_result=$(sudo os-prober 2>/dev/null || true)
     log "os-prober résultat : ${os_prober_result:-rien}"
 
-    # Démonter les EFI temporaires
     if [[ "$other_efi_mounted" == true ]]; then
         sudo umount "$tmp_efi" >> "$LOG_FILE" 2>&1 || true
     fi
     rm -rf "$tmp_efi"
 
-    # Si os-prober n'a rien trouvé → entrées manuelles dans 40_custom
     if [[ -z "$os_prober_result" ]]; then
         warn "os-prober n'a rien détecté — ajout manuel des entrées btrfs"
         setup_grub_custom_entries
@@ -572,7 +557,6 @@ setup_grub() {
         success "os-prober a détecté : $os_prober_result"
     fi
 
-    # Régénérer grub.cfg
     info "Régénération de grub.cfg..."
     if sudo grub-mkconfig -o /boot/grub/grub.cfg >> "$LOG_FILE" 2>&1; then
         success "GRUB configuré avec le thème Grimoire"
@@ -595,7 +579,6 @@ setup_grub_custom_entries() {
         local part_disk
         part_disk=$(lsblk -no PKNAME "$part" 2>/dev/null | head -1 || echo "")
 
-        # Ignorer le disque actuel
         if [[ -z "$part_disk" || "$part_disk" == "$current_disk" ]]; then
             continue
         fi
@@ -606,7 +589,6 @@ setup_grub_custom_entries() {
             continue
         fi
 
-        # Monter pour détecter le kernel
         local tmp_mnt
         tmp_mnt=$(mktemp -d)
         local kernel_name="vmlinuz-linux-cachyos"
@@ -625,7 +607,6 @@ setup_grub_custom_entries() {
 
         local entry_label="CachyOS ($part_disk)"
         info "Ajout entrée GRUB : $entry_label (UUID=$uuid)"
-        log "GRUB custom: $entry_label kernel=$kernel_name uuid=$uuid"
 
         sudo tee -a "$custom_file" > /dev/null <<EOF
 
@@ -675,7 +656,6 @@ setup_gtk() {
         return
     fi
 
-    # Appliquer via gsettings si disponible
     if command -v gsettings &>/dev/null; then
         gsettings set org.gnome.desktop.interface gtk-theme "Grimoire" 2>/dev/null || true
         success "Thème GTK appliqué via gsettings"
@@ -719,7 +699,6 @@ setup_directories() {
         fi
     done
 
-    # Copier tous les wallpapers depuis le repo
     local wallpaper_src="$DOTFILES_DIR/wallpapers"
     local wallpaper_dst="$HOME/Pictures/wallpapers"
 
@@ -728,7 +707,6 @@ setup_directories() {
         success "Wallpapers copiés dans ~/Pictures/wallpapers/"
     else
         warn "Dossier wallpapers/ introuvable dans le repo"
-        info "Placez vos wallpapers dans ~/Pictures/wallpapers/"
     fi
 }
 
@@ -762,7 +740,6 @@ setup_cursors() {
     local script_v2="$DOTFILES_DIR/scripts/build-grimoire-cursors-v2.sh"
     local cursor_source="$HOME/.cache/grimoire-cursors-build/themes/phinger-cursors-gruvbox-material"
 
-    # Vérifier les dépendances
     for dep in xcur2png xcursorgen; do
         if ! command -v "$dep" &>/dev/null; then
             warn "$dep non disponible, tentative d'installation..."
@@ -774,7 +751,6 @@ setup_cursors() {
         fi
     done
 
-    # Étape 1 : lancer v1 pour télécharger la source si absente
     if [[ ! -d "$cursor_source" ]]; then
         if [[ ! -f "$script_v1" ]]; then
             warn "Script curseur v1 introuvable — impossible de télécharger la source"
@@ -793,7 +769,6 @@ setup_cursors() {
         info "Source curseur déjà présente — skip v1"
     fi
 
-    # Étape 2 : lancer v2 pour la recoloration Grimoire
     if [[ ! -f "$script_v2" ]]; then
         warn "Script curseur v2 introuvable — ignoré"
         set -e
@@ -803,7 +778,6 @@ setup_cursors() {
     info "Recoloration Grimoire via v2..."
     if bash "$script_v2" >> "$LOG_FILE" 2>&1; then
         success "Thème curseur Grimoire installé dans ~/.local/share/icons/"
-        # Copier aussi dans /usr/share/icons pour SDDM
         if [[ -d "$HOME/.local/share/icons/phinger-cursors-grimoire" ]]; then
             sudo cp -r "$HOME/.local/share/icons/phinger-cursors-grimoire" /usr/share/icons/ >> "$LOG_FILE" 2>&1 && \
             success "Curseur copié dans /usr/share/icons/ pour SDDM" || \
@@ -827,6 +801,23 @@ setup_xdg_terminal() {
     mkdir -p "$HOME/.config"
     echo "kitty.desktop" > "$xdg_conf"
     success "Kitty défini comme terminal par défaut ($xdg_conf)"
+}
+
+# =============================================================================
+# SWAYOSD
+# =============================================================================
+
+setup_swayosd() {
+    step "Configuration de SwayOSD"
+
+    if command -v swayosd-server &>/dev/null; then
+        success "SwayOSD déjà installé"
+    else
+        warn "SwayOSD non trouvé — vérifiez l'installation AUR"
+    fi
+
+    info "SwayOSD sera lancé automatiquement via autostart.lua au démarrage de Hyprland"
+    success "SwayOSD configuré"
 }
 
 # =============================================================================
@@ -873,19 +864,16 @@ summary() {
 # =============================================================================
 
 main() {
-    # Initialiser le journal
     echo "=== Grimoire Install Log — $(date) ===" > "$LOG_FILE"
 
     banner
 
-    # Vérifications préalables
     step "Vérifications préalables"
     check_not_root
     check_arch
     check_internet
     check_hyprland
 
-    # Confirmation avant de commencer
     echo ""
     echo -e "${TEXT}  Ce script va :${RESET}"
     echo -e "${DIM}  • Installer tous les paquets nécessaires (pacman + AUR)${RESET}"
@@ -893,6 +881,7 @@ main() {
     echo -e "${DIM}  • Configurer Fish comme shell par défaut${RESET}"
     echo -e "${DIM}  • Installer les thèmes SDDM, GRUB et GTK${RESET}"
     echo -e "${DIM}  • Activer Bluetooth et SDDM${RESET}"
+    echo -e "${DIM}  • Installer SwayOSD et OnlyOffice${RESET}"
     echo ""
 
     if ! confirm "Lancer l'installation complète de Grimoire ?"; then
@@ -900,7 +889,6 @@ main() {
         exit 0
     fi
 
-    # Pipeline d'installation
     detect_aur_helper
     install_packages
     setup_directories
@@ -913,6 +901,7 @@ main() {
     setup_bluetooth
     setup_cursors
     setup_xdg_terminal
+    setup_swayosd
 
     summary
 }
