@@ -10,7 +10,7 @@
 
     "modules-left": ["hyprland/workspaces"],
     "modules-center": ["clock"],
-    "modules-right": ["pulseaudio", "bluetooth", "network", "battery", "tray"],
+    "modules-right": ["backlight", "pulseaudio", "bluetooth", "network", "battery", "tray"],
 
     "hyprland/workspaces": {
         "format": "{icon}",
@@ -36,13 +36,24 @@
         "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>"
     },
 
+    "backlight": {
+        "format": "{icon} {percent}%",
+        "format-icons": ["󰃞", "󰃟", "󰃠"],
+        "on-scroll-up": "swayosd-client --brightness raise",
+        "on-scroll-down": "swayosd-client --brightness lower",
+        "tooltip": false
+    },
+
     "pulseaudio": {
         "format": "{icon} {volume}%",
         "format-muted": "󰝟",
         "format-icons": {
             "default": ["󰕿", "󰖀", "󰕾"]
         },
-        "on-click": "pavucontrol"
+        "on-click": "pavucontrol",
+        "on-scroll-up": "swayosd-client --output-volume raise",
+        "on-scroll-down": "swayosd-client --output-volume lower",
+        "on-click-right": "swayosd-client --output-volume mute-toggle"
     },
 
     "bluetooth": {
